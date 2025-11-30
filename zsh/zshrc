@@ -1,0 +1,46 @@
+# Ensure Starship uses the correct config file
+export STARSHIP_CONFIG="$HOME/.config/starship.toml"
+
+setopt prompt_subst
+autoload -Uz add-zsh-hook
+
+export PATH=/opt/homebrew/bin:$PATH
+
+export NVM_DIR="$HOME/.nvm"
+  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
+  [ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
+
+# fnm setup (Fast Node Manager)
+export FNM_DIR="$HOME/.fnm"
+eval "$(fnm env --use-on-cd)"
+
+# -----------------------------
+# Clean Starship prompt (no blinking)
+# -----------------------------
+
+# Initialize Starship
+eval "$(starship init zsh)"
+
+# A simple, static ">" prompt for the second line
+STATIC_ARROW="> "
+
+# Build Starship top line before each prompt
+starship_precmd() {
+  STARSHIP_TOP="$(starship prompt 2>/dev/null || echo '')"
+}
+add-zsh-hook precmd starship_precmd
+
+# When line editing starts, set the prompt
+zle-line-init() {
+  PROMPT="${STARSHIP_TOP}
+${STATIC_ARROW}"
+  zle reset-prompt
+}
+zle -N zle-line-init
+
+# When a command finishes, retain the same static prompt
+zle-line-finish() {
+  PROMPT="${STARSHIP_TOP}
+${STATIC_ARROW}"
+}
+zle -N zle-line-finish
