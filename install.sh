@@ -2,59 +2,143 @@
 
 set -e
 
-echo "🔧 Starting terminal environment installation…"
+echo "Dotfiles Installer"
+echo "----------------------"
+echo ""
+echo "This script can:"
+echo "  • Install developer tools (zsh, fnm, node, pnpm, git, playwright, unzip)"
+echo "  • Install global npm & pnpm packages"
+echo "  • Copy your .zshrc and starship.toml to the correct locations"
+echo ""
+read -p "Do you want to install developer dependencies? (y/N): " INSTALL_DEPS
 
-# -------------------------------
-# 1. Install Homebrew if missing
-# -------------------------------
-if ! command -v brew &>/dev/null; then
-    echo "🍺 Homebrew not found. Installing…"
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+INSTALL_DEPS=$(echo "$INSTALL_DEPS" | tr '[:upper:]' '[:lower:]')
+
+# ---------------------------
+# OPTIONAL: Install Dependencies
+# ---------------------------
+if [[ "$INSTALL_DEPS" == "y" || "$INSTALL_DEPS" == "yes" ]]; then
+    echo ""
+    echo "Installing developer tools..."
+
+    # Detect platform
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macOS detected"
+        if ! command -v brew >/dev/null 2>&1; then
+            echo "Installing Homebrew..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        fi
+
+        brew install \
+            git \
+            curl \
+            unzip \
+            zsh \
+            starship \
+            fnm
+
+    else
+        echo "🐧 Linux detected"
+
+        if command -v apt >/dev/null 2>&1; then
+            sudo apt update
+            sudo apt install -y \
+                git \
+                curl \
+                unzip \
+                zip \
+                zsh
+
+            curl -sS https://starship.rs/install.sh | sh -s -- -y
+            curl -fsSL https://fnm.vercel.app/install | bash
+        else
+            echo "Unsupported Linux distro — skipping dependency installation."
+        fi
+    fi
+
+    # ---------------------------
+    # Install Node via fnm
+    # ---------------------------
+    if command -v fnm >/dev/null 2>&1; then
+        echo "Installing Node (LTS) using fnm..."
+
+        # Load fnm environment
+        eval "$(fnm env --shell bash 2>/dev/null || fnm env --shell zsh)"
+
+        fnm install --lts
+        fnm default lts-latest
+
+        echo "Node installed successfully."
+
+        # ---------------------------
+        # Install pnpm
+        # ---------------------------
+        echo "Installing pnpm..."
+        corepack enable
+        corepack prepare pnpm@latest --activate
+
+        echo "Installing global npm packages..."
+        GLOBAL_PACKAGES=(
+            npm-check-updates
+            typescript
+            ts-node
+            eslint
+            prettier
+            vercel
+            serverless
+            pm2
+            http-server
+        )
+
+        npm install -g "${GLOBAL_PACKAGES[@]}"
+
+        echo "Installing global pnpm packages..."
+        pnpm add -g "${GLOBAL_PACKAGES[@]}"
+
+        # ---------------------------
+        # Install Playwright
+        # ---------------------------
+        echo "Installing Playwright browsers..."
+        pnpm add -g playwright
+        playwright install
+        playwright install-deps || true
+    else
+        echo "fnm not found — skipping Node, pnpm, npm global installs, and Playwright setup."
+    fi
+
+    echo ""
+    echo "Developer tools installed."
 else
-    echo "🍺 Homebrew already installed."
+    echo "Skipping dependency installation."
 fi
 
-# -------------------------------
-# 2. Install dependencies
-# -------------------------------
-echo "📦 Installing dependencies…"
-brew install starship zsh || true
 
-# -------------------------------
-# 3. Copy Starship config
-# -------------------------------
+# ---------------------------
+# Config propagation
+# ---------------------------
+
+echo ""
+echo "Syncing configuration files…"
+
 mkdir -p ~/.config
+mkdir -p ~/.config/starship
 
-STARSHIP_TARGET="$HOME/.config/starship.toml"
-if [ -f "$STARSHIP_TARGET" ]; then
-    echo "📁 Backing up existing starship.toml → starship.toml.backup"
-    mv "$STARSHIP_TARGET" "$STARSHIP_TARGET.backup"
-fi
+backup_file() {
+    if [[ -f "$1" ]]; then
+        echo "Backing up $1 → $1.backup-$(date +%s)"
+        mv "$1" "$1.backup-$(date +%s)"
+    fi
+}
 
-echo "📁 Installing new starship.toml"
-cp starship/starship.toml "$STARSHIP_TARGET"
+backup_file ~/.zshrc
+backup_file ~/.config/starship.toml
 
-# -------------------------------
-# 4. Install .zshrc
-# -------------------------------
-ZSH_TARGET="$HOME/.zshrc"
-if [ -f "$ZSH_TARGET" ]; then
-    echo "📁 Backing up existing .zshrc → .zshrc.backup"
-    mv "$ZSH_TARGET" "$ZSH_TARGET.backup"
-fi
+cp ./zsh/.zshrc ~/.zshrc
+cp ./starship/starship.toml ~/.config/starship.toml
 
-echo "📁 Installing new .zshrc"
-cp zsh/zshrc "$ZSH_TARGET"
+echo "Config files synced!"
+echo ""
 
-# -------------------------------
-# 5. Ensure Starship config is set
-# -------------------------------
-if ! grep -q "export STARSHIP_CONFIG=" "$ZSH_TARGET"; then
-    echo 'export STARSHIP_CONFIG="$HOME/.config/starship.toml"' >> "$ZSH_TARGET"
-fi
-
-# -------------------------------
-# 6. Finished
-# -------------------------------
-echo "✨ Installation complete!"
-echo "➡️  Restart your terminal or run:  source ~/.zshrc"
+echo "Installation Complete!"
+echo "Restart terminal to apply changes."
+echo ""
