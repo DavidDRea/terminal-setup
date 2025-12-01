@@ -133,7 +133,7 @@ backup_file() {
 backup_file ~/.zshrc
 backup_file ~/.config/starship.toml
 
-cp ./zsh/.zshrc ~/.zshrc
+cp ./zsh/zshrc ~/.zshrc
 cp ./starship/starship.toml ~/.config/starship.toml
 
 echo "Config files synced!"
